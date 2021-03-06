@@ -98,3 +98,22 @@ In short:
  * is not modifiable: calling modification methods could throw exceptions for non-Java languages
 
 Note: both `sourcePsi` and `javaPsi` could be [converted](#psi-to-uast-conversion) back to the `UElement`
+
+## Uast Visitors
+
+## Uast performance hints
+
+Uast is not a zero-cost abstraction, [some methods](https://youtrack.jetbrains.com/issue/KT-29856) could be unexpectedly expensive for some languages 
+Uast is lazy, so convert only what you need
+
+Use the "apriori list" of types for really hard cases.
+
+## Sharp corners of UAST
+
+### `UastLiteralExpression`
+
+### `sourcePsi` and `javaPsi`, `psi` and UElement as Psi
+
+### Should I use `UMethod` or `PsiMethod`, `UClass` or `PsiClass` ?
+
+### Ancestor-descendant relation may be not preserved between UAST elements and their sourcePsi
