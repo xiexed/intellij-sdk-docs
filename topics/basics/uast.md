@@ -101,12 +101,35 @@ Note: both `sourcePsi` and `javaPsi` could be [converted](#psi-to-uast-conversio
 
 ## Uast Visitors
 
+In Uast there is no unified way to get _children_ of the `UElement` 
+(though it is possible to get parent via `UElement#uastParent`). Thus, the only way to walk the Uast as a tree is passing the
+[`UastVisitor`](upsource:///uast/uast-common/src/org/jetbrains/uast/visitor/UastVisitor.kt) to the `UElement#accept` method.
+
+Note: there is a convention in UAST-visitors that a visitor will not be passed to children if `visit*` will return `true`,
+otherwise `UastVisitor` will continue the walk into depth.
+
+Also you can convert the `UastVisitor` to `PsiElementVisitor` using the [`UastVisitorAdapter`](upsource:///java/java-analysis-api/src/com/intellij/uast/UastVisitorAdapter.java)
+or [`UastHintedVisitorAdapter`](upsource:///java/java-analysis-api/src/com/intellij/uast/UastHintedVisitorAdapter.java).
+The latter is preferable because it shows better performance and more predictable results.
+
+As a general rule we're recommending to abstain from using `UastVisitor` if you don't need to process a lot of `UElement`s of different type.
+Usually if the structure of elements is not very important to you it is better to walk the PSI-tree with `PsiElementVisitor` and [convert](#psi-to-uast-conversion) each PsiElement to Uast
+separately via `UastContext.toUElement`.
+
 ## Uast performance hints
 
-Uast is not a zero-cost abstraction, [some methods](https://youtrack.jetbrains.com/issue/KT-29856) could be unexpectedly expensive for some languages 
-Uast is lazy, so convert only what you need
+Uast is not a zero-cost abstraction, [some methods](https://youtrack.jetbrains.com/issue/KT-29856) could be unexpectedly expensive for some languages,
+so be careful with optimizations because you could get the opposite.
 
-Use the "apriori list" of types for really hard cases.
+[Converting](#psi-to-uast-conversion) to `UElement` also could require resolve for some languages in some cases and also could appear unexpectedly expensive. So don't convert to Uast without real necessity. 
+For instance converting the whole `PsiFile` to `UFile` and the walk it just to collect `UMethod` declarations - is a bad idea.
+Instead, you could walk the `PsiFile` and convert to `UMethod` each element separately.
+
+Uast is lazy when you pass visitors to the `UElement#accept` or getting `UElement#uastParent`,
+so convert only what you need, and it will save a lot of CPU and Memory.
+
+For really hard perforance optimisation consider using the `UastLanguagePlugin#getPossiblePsiSourceTypes` method 
+to pre-filter `PsiElement`s before converting them to Uast.
 
 ## Sharp corners of UAST
 
