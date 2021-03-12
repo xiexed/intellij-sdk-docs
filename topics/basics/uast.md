@@ -73,7 +73,8 @@ Sometimes you could need to get from the `UElement` back to sources of the dedic
 For that purpose there is `UElement#sourcePsi` property which returns the `PsiElement` of the original language.
 
 The `sourcePsi` is a "physical" `PsiElement` and it is mostly useful for getting text ranges in the original file or putting the inspection warning on it.
-We encourage you to avoid casting the `sourcePsi` to specific classes, because this means that you've falling back from the UAST abstraction to the language-specific API. 
+We encourage you to avoid casting the `sourcePsi` to specific classes, because this means that you've falling back from the UAST abstraction to the language-specific API. Some `UElement` are "virtual" and doesn't have `sourcePsi`. For some `UElement` the `sourcePsi` could be different to element
+from which the `UElement` was obtained.
 
 Also, there is a `UElement#javaPsi` property which returns a "Java-like" `PsiElement`.
 It is a "fake" `PsiElement` to make different Jvm languages emulate Java language to keep compatibility with Java-API.
@@ -133,10 +134,48 @@ to pre-filter `PsiElement`s before converting them to Uast.
 
 ## Sharp corners of UAST
 
-### `UastLiteralExpression`
+### `ULiteralExpression` should not be used for strings
+
+[`ULiteralExpression`](upsource:///uast/uast-common/src/org/jetbrains/uast/expressions/ULiteralExpression.kt) is a `UElement` for representing
+literal values like numbers, booleans and string. 
+Although, string values are also literals but `ULiteralExpression` is not very handy to work with them.
+For instance, it doesn't handle Kotlin string interpolations.
+If you need to process string literals to evaluate the value or to perform the language injection consider using the 
+[`UInjectionHost`](upsource:///uast/uast-common/src/org/jetbrains/uast/expressions/UInjectionHost.kt) element.
 
 ### `sourcePsi` and `javaPsi`, `psi` and UElement as Psi
 
+For historical reasons the relations between `UElement` and `PsiElement` are complicated.
+Some `UElement`-s implement the `PsiElement`, for instance `UMethod` implements `PsiMethod`.
+Currently, we strongly discourage using the `UElement` as `PsiElement` and the Devkit provides an inspection for that.
+This _"implements"_ is deprecated, and we hope we get rid of it one day.
+
+Also, there is `UElement#psi` property, it returns the same element as `javaPsi` or the `sourcePsi`,
+because it is actually hard to guess what will be returned now it is deprecated.
+
+Thus `sourcePsi` and `javaPsi` should be the only ways to get `PsiElement` from `UElement`. See the [corresponding section](#uast-to-psi-conversion-sourcepsi-and-javapsi).
+
 ### Should I use `UMethod` or `PsiMethod`, `UClass` or `PsiClass` ?
 
+Uast provides a unified way to represent JVM compatible declarations via `UMethod`, `UField`, `UClass` and so on.
+But the same time all Jvm language plugins somehow implement `PsiMethod`, `PsiClass` and so on to be compatible with Java.
+These implementations could be [obtained](#uast-to-psi-conversion-sourcepsi-and-javapsi) via `UElement#javaPsi` property.
+
+So the question is: "What should I use to represent the Java-declaration in my code?".
+The answer is: We encourage using `PsiMethod`, `PsiClass` as common interfaces for Java-declarations regarless of the Jvm language
+and discourage exposing the Uast interfaces in the API.
+
+Note: for method bodies there is no such alternatives, so we don't discourage exposing for instance the `UExpression`,
+but you could still consider exposing the raw `PsiElement` instead.
+
 ### Ancestor-descendant relation may be not preserved between UAST elements and their sourcePsi
+
+Uast is an abstraction level on top of PSI of different languages and tries to build a unified tree.
+It leads to the fact that tree structure could seriously diverge between UAST and original language,
+so no ancestor-descendant relation preserving is guaranteed.
+For instance result of the following lines:
+
+      generateSequence(uElement, UElement::uastParent).mapNotNull { it.sourcePsi }
+      generateSequence(uElement.sourcePsi) { it.parent }
+
+could be different not only in the number of elements but also in their order.
